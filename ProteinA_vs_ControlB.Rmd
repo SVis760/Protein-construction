@@ -1,0 +1,470 @@
+---
+title: "Protein A vs Control Protein B with treatment 1, 2 and 3"
+output: html_notebook
+---
+
+With this analysis I will be answering the following questions:
+1. Does treatment 1, 2 and 3 have a significant effect on each protein's measured ratio?
+2. Does protein A and Control protein B follow the same pattern for calibrated ratios?
+
+### 1A. Installing packages
+
+```{r message=FALSE}
+# Installing packages
+if(!require("dplyr")) {install.packages("dplyr")}
+if(!require("readr")) {install.packages("readr")}
+if(!require("ggplot2")) {install.packages("ggplot2")}
+if(!require("tidyverse")) {install.packages("tidyverse")}
+if(!require("patchwork")) {install.packages("patchwork")} # placing multiple ggplot net to each other
+``` 
+
+### 2A. Loading libraries & data
+
+```{r message=FALSE}
+# Loading libraries
+library(dplyr)
+library(readr)
+library(ggplot2)
+library(tidyverse)
+library(patchwork)
+```
+
+```{r echo = FALSE}
+ratio_df <- read_csv("proteinAvsB_ratios.csv",show_col_types=FALSE)
+```
+
+### 4A. Explore data structure, view & summary
+
+```{r}
+View(ratio_df) #Row length differs due to experimental results
+str(ratio_df) # all data is numeric
+summary(ratio_df)
+str(ratio_df)
+```
+
+### 5A. changing column "pH"treatment" to class factor instead of numeric
+```{r}
+ratio_df$treatment <- as.factor(ratio_df$treatment)
+levels(ratio_df$treatment)
+
+```
+### 6A. Visualize ratio distribution for each protein for treatment 1, 2 and 3.
+
+```{r echo=FALSE}
+violin_all <- ggplot(ratio_df,aes(x=treatment,y=ratio)) +
+            geom_violin(aes(fill = treatment)) +
+            geom_boxplot(outlier.color="red", alpha=0.5) +
+            stat_summary(fun=median, geom="point", size=2, color="red") +
+            labs(title = "Ratio for protein A and protein B") +
+            ylim(0,50) +
+            facet_wrap(~protein)
+violin_all
+```
+
+### 7A. Organize data for removing outliers
+Does protein A with treatment 1, 2 and 3 have significant outliers? 
+
+Checking the statistics of the cleaned data:
+```{r}
+group_by(ratio_df, treatment, protein) %>%
+  summarise(
+    count = n(),
+    mean = mean(ratio),
+    sd = sd(ratio),
+    median = median(ratio),
+    IQR = IQR(ratio)
+  )
+```
+
+```{r}
+#--------Protein A with treatment 1---------
+pAt1 <- ratio_df %>% # 736 observations
+          group_by(treatment,protein,ratio) %>%
+          filter(protein == "A" &
+                 treatment == 1)
+quantile1_pAt1 <- quantile(pAt1$ratio,0.25) # 17.37
+quantile3_pAt1 <- quantile(pAt1$ratio,0.75) # 22.815
+IQR_pAt1 <- quantile3_pAt1 - quantile1_pAt1 # 5.445
+pAt1 <- pAt1 %>% 
+          mutate(is_outlier = ratio < quantile1_pAt1 - (IQR_pAt1*1.5) |
+                   ratio >  quantile3_pAt1 + (IQR_pAt1*1.5)) %>% 
+          filter(!is_outlier) # remains 735 observations, 1 outlier removed
+
+#--------Protein A with treatment 2---------
+pAt2 <- ratio_df %>% # 176 observations
+          group_by(treatment,protein,ratio) %>%
+          filter(protein == "A",
+                 treatment == 2)
+quantile1_pAt2 <- quantile(pAt2$ratio,0.25) # 6.8
+quantile3_pAt2 <- quantile(pAt2$ratio,0.75) # 9.955
+IQR_pAt2 <- quantile3_pAt2 - quantile1_pAt2 # 3.155
+pAt2 <- pAt2 %>% 
+          mutate(is_outlier = ratio <  quantile1_pAt2 - (IQR_pAt2*1.5) |
+                   ratio >  quantile3_pAt2 + (IQR_pAt2*1.5)) %>% 
+          filter(!is_outlier) # remains 173 observations, 3 outliers removed
+
+
+#--------Protein A with treatment 3---------
+pAt3 <- ratio_df %>% # start with 316 observations
+          group_by(treatment,protein,ratio) %>%
+          filter(protein == "A",
+                 treatment == 3)
+quantile1_pAt3 <- quantile(pAt3$ratio,0.25) # 23.815
+quantile3_pAt3 <- quantile(pAt3$ratio,0.75) # 31.4675
+IQR_pAt3 <- quantile3_pAt3 - quantile1_pAt3 # 7.6525
+pAt3 <- pAt3 %>% 
+          mutate(is_outlier = ratio <  quantile1_pAt3 - (IQR_pAt3*1.5) |
+                   ratio >  quantile3_pAt3 + (IQR_pAt3*1.5)) %>% 
+          filter(!is_outlier) # remains 311 observations, 5 outliers removed
+
+```
+
+### 8A. View them in a histogram to check for distribution
+
+```{r}
+set.seed(0)
+# Protein A treatment 1
+violinplot_clean_pAt1 <- pAt1 %>% 
+  ggplot(aes(x = "Treatment 1", y = ratio)) +
+  geom_violin(alpha=0.5,fill = "red") + geom_boxplot(outlier.color="red", alpha=0.5) +
+  xlab("")
+  
+violinplot_clean_pAt2 <- pAt2 %>% 
+  ggplot(aes(x = "treatment 2", y = ratio)) +
+  geom_violin(alpha=0.5,fill = "green") + geom_boxplot(outlier.color="red", alpha=0.5) +
+  xlab("")
+  
+
+violinplot_clean_pAt3 <- pAt3 %>% 
+  ggplot(aes(x = "treatment 3", y = ratio)) +
+  geom_violin(alpha=0.5,fill = "blue") + geom_boxplot(outlier.color="red", alpha=0.5) +
+  xlab("")
+  
+#--------------------------------------------------------------------
+set.seed(5)
+hist_pAt1 <- ggplot(pAt1,aes(ratio)) +
+  geom_histogram(fill = "red", alpha = 0.5, binwidth = 1) +
+  labs(title = "protein A, treatment 1")
+
+hist_pAt2 <- ggplot(pAt2,aes(ratio)) +
+  geom_histogram(fill = "green", alpha = 0.5, binwidth = 1) +
+  labs(title = "protein A, treatment 2")
+
+hist_pAt3 <- ggplot(pAt3,aes(ratio)) +
+  geom_histogram(fill = "blue", alpha = 0.5, binwidth = 2) +
+  labs(title = "protein A, treatment 3")
+
+hist_pAt1 + hist_pAt2 + hist_pAt3 + violinplot_clean_pAt1 + ggtitle(label = "Protein A") + violinplot_clean_pAt2 + violinplot_clean_pAt3 + plot_layout(ncol=3,nrow=2) +
+   plot_annotation(
+  title = 'Treatment ratio for protein A',
+  subtitle = 'filter at 470 nm excitation')# Plotting next to each other with patchwork
+
+
+```
+
+### 9A. Visualizing normality assumption with Q-Q plot
+
+
+```{r}
+set.seed(900)
+ 
+par(mfrow = c(1,3))
+qqnorm(pAt1$ratio, main = 'Protein A treatment 1')
+qqline(pAt1$ratio, col = "steelblue", lwd = 2)
+
+qqnorm(pAt2$ratio, main = 'Protein A treatment 2')
+qqline(pAt2$ratio, col = "steelblue", lwd = 2)
+
+qqnorm(pAt3$ratio, main = 'Protein A treatment 3')
+qqline(pAt3$ratio, col = "steelblue", lwd = 2)
+
+```
+
+### 10A. Testing for normality of data
+
+```{r}
+# Testing for normality with the shapiro-Wilk test
+shapiro.test(pAt1$ratio)
+shapiro.test(pAt2$ratio)
+shapiro.test(pAt3$ratio)
+```
+
+### 11A. Transformation of data with log() and testing normality
+
+```{r}
+# log() transformations
+pAt1 <- pAt1  %>% 
+              mutate(log_ratio = log(ratio))
+shapiro.test(pAt1$log_ratio) # 0.01342
+
+pAt2 <- pAt2  %>% 
+              mutate(log_ratio = log(ratio))
+shapiro.test(pAt2$log_ratio) # 0.02112
+
+pAt3 <- pAt3  %>% 
+              mutate(log_ratio = log(ratio))
+shapiro.test(pAt3$log_ratio) # 0.1924
+```
+
+### 12A. Combine data
+
+They all do not meet the normality criteria, even after transformation, log transformation being the closest to normality. Thus a non-parametric test can be used to look for differences in mean between groups.
+
+Data will be combined in the long-format for hypothesis testing
+
+```{r}
+combined_pA <- rbind(pAt1,pAt2,pAt3)
+```
+
+
+### 13A. Checking the statistics of the cleaned data
+
+```{r}
+group_by(combined_pA, treatment) %>%
+  summarise(
+    count = n(),
+    mean = mean(ratio),
+    sd = sd(ratio),
+    median = median(ratio),
+    IQR = IQR(ratio)
+  )
+```
+
+### 14A. Hypothesis testing: non-parametric Kruskal-Wallis ANOVA
+Note that the difference is important in order to have a working protein.
+The higher the ratio, then the protein indicates that the cell compartment is basic, and the other way around for acidic conditions.
+
+H0: The means between groups are identical
+H3: At least, the mean of one group is different
+
+```{r}
+kruskal_pA <- kruskal.test(log_ratio ~ treatment, data = combined_pA)
+ # p < 2e-16*** (at least the mean of one group is different)
+```
+
+
+### 15A. Multiple pairwise-comparison between groups
+According to the Kruskal-Walis test, there is a significant difference between groups with p < 0.05 ,however from the results, it is not possible to distinguish which groups differ.
+
+```{r}
+pairwise.wilcox.test(combined_pA$log_ratio, combined_pA$treatment,
+                 p.adjust.method = "BH")
+```
+
+
+The test shows that the ratio is different for each treatment, which is a positive result, as they need to differ in order to be able to use as marker.
+
+### 16A. Comparing (standardized) ratios, in proportion to treatment 2 as equivalent of 1.0
+
+```{r}
+means_pA <- combined_pA %>% # mean treatment 2 = 2.099387
+            group_by(treatment) %>% 
+            summarise(mean_ratio = mean(log_ratio), standardized_ratio = mean(log_ratio)/2.099387)
+
+```
+
+
+### 17A. Plotting the usual ratio and the standardized
+
+```{r}
+plot_pA_mean <- ggplot(means_pA, aes(x = treatment, y=mean_ratio)) +
+      geom_point(size=2) +
+      geom_text(aes(label = round(mean_ratio,2)), hjust = 0.5,  vjust = -1) +
+      geom_line(aes(x=as.numeric(treatment),y=mean_ratio), color="steelblue") +
+      scale_y_continuous(limits=c(2,3.5), breaks = seq(2,3.5,by=0.5))
+      
+plot_pA_std <- ggplot(means_pA,aes(x = treatment, y=standardized_ratio)) +
+      geom_point(size=2) +
+      geom_text(aes(label = round(standardized_ratio,2)), hjust = 0.5,  vjust = -1) +
+      geom_line(aes(x=as.numeric(treatment),y=standardized_ratio), color="steelblue") +
+      scale_y_continuous(limits=c(1,1.6), breaks = seq(1,1.6,by=0.2))
+
+plot_pA_mean + ggtitle("Protein A") + plot_pA_std
+```
+
+------------------------------------------------------------------------------
+## Fluorescence emission ratio at 470nm for Protein B with treatment 1, 2, 3.
+
+### 1B. Organizing data and removing outliers
+```{r}
+pBt1 <- ratio_df %>%  # start with 171 observations
+          group_by(treatment,protein,ratio) %>%
+          filter(protein == "B" &
+                 treatment == 1)
+
+quantile1_pBt1 <- quantile(pBt1$ratio,0.25) # 16.965 
+quantile3_pBt1 <- quantile(pBt1$ratio,0.75) # 21.615
+IQR_pBt1 <- quantile3_pBt1 - quantile1_pBt1 # 4.65
+
+pBt1 <- pBt1 %>% 
+          mutate(is_outlier = ratio < quantile1_pBt1 - (IQR_pBt1*1.5) |
+                   ratio >  quantile3_pBt1 + (IQR_pBt1*1.5)) %>% 
+          filter(!is_outlier) # remains 163 observations, 8 outliers removed
+
+#--------------------------------------------------------
+pBt2 <- ratio_df %>%  # start with 138 observations
+          group_by(treatment,protein,ratio) %>%
+          filter(protein == "B" &
+                 treatment == 2)
+
+quantile1_pBt2 <- quantile(pBt2$ratio,0.25) #20.33
+quantile3_pBt2 <- quantile(pBt2$ratio,0.75) #27.3025 
+IQR_pBt2 <- quantile3_pBt2 - quantile1_pBt2 # 6.96
+
+pBt2 <- pBt2 %>% 
+          mutate(is_outlier = ratio < quantile1_pBt2 - (IQR_pBt2*1.5) |
+                   ratio >  quantile3_pBt2 + (IQR_pBt2*1.5)) %>% 
+          filter(!is_outlier)# remains 137 observations, 1 outlier removed
+
+#---------------------------------------------------------
+pBt3 <- ratio_df %>%  # start with 130 observations
+          group_by(treatment,protein,ratio) %>%
+          filter(protein == "B" &
+                 treatment == 3)
+
+quantile1_pBt3 <- quantile(pBt3$ratio,0.25) # 29.0075
+quantile3_pBt3 <- quantile(pBt3$ratio,0.75) # 37.18
+IQR_pBt3 <- quantile3_pBt3 - quantile1_pBt3 # 8.1725
+
+pBt3 <- pBt3 %>% 
+          mutate(is_outlier = ratio < quantile1_pBt3 - (IQR_pBt3*1.5) |
+                   ratio >  quantile3_pBt3 + (IQR_pBt3*1.5)) %>% 
+          filter(!is_outlier)# remains 124 observations, 6 outliers removed
+```
+
+
+
+### 2B. Plotting ratios without outliers
+
+```{r}
+violinplot_clean_pBt1 <- pBt1 %>% 
+  ggplot(aes(x = "treatment 1", y = ratio)) +
+  geom_violin(alpha=0.5,fill = "red") + geom_boxplot(outlier.color="blue", alpha=0.5) +
+  xlab("")
+
+violinplot_clean_pBt2 <- pBt2 %>% 
+  ggplot(aes(x = "treatment 2", y = ratio)) +
+  geom_violin(alpha=0.5,fill = "green") + geom_boxplot(outlier.color="red", alpha=0.5) +
+  xlab("")
+
+violinplot_clean_pBt3 <- pBt3 %>% 
+  ggplot(aes(x = "treatment 3", y = ratio)) +
+  geom_violin(alpha=0.5,fill = "blue") + geom_boxplot(outlier.color="red", alpha=0.5) +
+  xlab("")
+```
+
+### 3B. Viewing distribution in a histogram and combining all graphs
+
+```{r}
+set.seed(5)
+hist_pBt1 <- ggplot(pBt1,aes(ratio)) +
+  geom_histogram(fill = "red", alpha = 0.5, binwidth = 2) +
+  labs(title = "Protein B at treatment 1")
+
+hist_pBt2 <- ggplot(pBt2,aes(ratio)) +
+  geom_histogram(fill = "green", alpha = 0.5, binwidth = 2) +
+  labs(title = "Protein B at treatment 2")
+
+hist_pBt3 <- ggplot(pBt3,aes(ratio)) +
+  geom_histogram(fill = "blue", alpha = 0.5, binwidth = 2) +
+  labs(title = "Protein B at treatment 3")
+
+hist_pBt1 + hist_pBt2 + hist_pBt3 + violinplot_clean_pBt1 + ggtitle(label = "Protein B") + violinplot_clean_pBt2 + violinplot_clean_pBt3 + plot_layout(ncol=3,nrow=2) +
+   plot_annotation(
+  title = 'Treatment ratio for Protein B',
+  subtitle = 'GFP filter at 470 nm excitation')# Plotting next to each other with patchwork
+
+```
+
+### 4B. Visualizing normality assumption with Q-Q plot
+
+```{r}
+set.seed(900)
+ 
+par(mfrow = c(1,3))
+qqnorm(pBt1$ratio, main = 'Protein B treatment 1')
+qqline(pBt1$ratio, col = "steelblue", lwd = 2)
+
+qqnorm(pBt2$ratio, main = 'Protein B treatment 2')
+qqline(pBt2$ratio, col = "steelblue", lwd = 2)
+
+qqnorm(pBt3$ratio, main = 'Protein B treatment 3')
+qqline(pBt3$ratio, col = "steelblue", lwd = 2)
+```
+
+
+### 5B. Testing normality with Shapiro-Wilk test.
+
+```{r}
+# Testing for normality with the shapiro-Wilk test
+shapiro.test(pBt1$ratio) # p = 0.9338
+shapiro.test(pBt2$ratio) # p = 0.2168
+shapiro.test(pBt3$ratio) # p = 0.777
+```
+
+
+They all meet the normality criteria, thus a parametric test (ANOVA) can be used to look for differences in mean between groups.
+
+### 6B. Data combined in the long-format for hypothesis testing.
+
+```{r}
+combined_pB <- rbind(pBt1,pBt2,pBt3)
+```
+
+### 7B. Hypothesis testing.
+
+H0: The means between groups are identical
+H3: At least, the mean of one group is different
+
+```{r}
+anova_combined_pB <- aov(ratio~treatment, combined_pB)
+summary.aov(anova_combined_pB) # p < 2e-16*** (at least the mean of one group is different)
+model.tables(anova_combined_pB, "means") # table of means
+```
+
+
+
+There is a significant difference between groups, but which groups exactly differ?
+
+### 8B. Multiple pair-wise comparison
+
+```{r}
+pairwise.wilcox.test(combined_pB$ratio, combined_pB$treatment,
+                 p.adjust.method = "BH")
+```
+
+
+All groups differ significantly. 
+
+### 9B. Comparing (standardized) ratios
+
+```{r}
+means_pB <- combined_pB %>% 
+            group_by(treatment) %>% 
+            summarise(mean_ratio = mean(ratio), standardized_ratio = mean(ratio)/23.91153)
+
+```
+
+```{r}
+
+plot_pB_mean <- ggplot(means_pB,aes(x = treatment, y=mean_ratio)) +
+      geom_point(size=2) +
+      geom_text(aes(label = round(mean_ratio,2)), hjust = 0.5,  vjust = -1) +
+      geom_line(aes(x=as.numeric(treatment),y=mean_ratio), color="steelblue") +
+      scale_y_continuous(limits=c(15,35), breaks = seq(15,35,by=5))
+
+plot_pB_std <- ggplot(means_pB,aes(x = treatment, y=standardized_ratio)) +
+      geom_point(size=2) +
+      geom_text(aes(label = round(standardized_ratio,2)), hjust = 0.5,  vjust = -1) +
+      geom_line(aes(x=as.numeric(treatment),y=standardized_ratio), color="steelblue") +
+      scale_y_continuous(limits=c(0.8,1.4), breaks = seq(0.8,1.4,by=0.2))
+plot_pB_mean + ggtitle("Protein B") + plot_pB_std
+```
+
+
+
+
+
+
+
+
